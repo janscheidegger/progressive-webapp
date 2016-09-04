@@ -34,6 +34,7 @@
     
   var app = {
     isLoading: true,
+    hasRequestPending: false,
     visibleCards: {},
     selectedCities: [],
     spinner: document.querySelector('.loader'),
@@ -43,6 +44,12 @@
     daysOfWeek: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   };
 
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js').then(function() {
+      console.log('[ServiceWorker] registered...');
+    })
+  }
 
   /*****************************************************************************
    *
@@ -106,6 +113,8 @@
       app.container.appendChild(card);
       app.visibleCards[data.key] = card;
     }
+
+
     card.querySelector('.description').textContent = data.currently.summary;
     card.querySelector('.date').textContent =
       new Date(data.currently.time * 1000);
@@ -159,7 +168,24 @@ app.saveSelectedCities = function() {
   // Gets a forecast for a specific city and update the card with the data
   app.getForecast = function(key, label) {
     var url = weatherAPIUrlBase + key + '.json';
+
+    if('caches' in window) {
+      caches.match(url).then(function(response) {
+        if(response) {
+          response.json().then(function(json) {
+            if(app.hasRequestPending) {
+              json.key = key;
+              json.label = label;
+              app.updateForecastCard(json);
+            }
+          })
+        }
+      })
+    }
+
     // Make the XHR to get the data, then update the card
+    
+    app.hasRequestPending = true;
     var request = new XMLHttpRequest();
     request.onreadystatechange = function() {
       if (request.readyState === XMLHttpRequest.DONE) {
